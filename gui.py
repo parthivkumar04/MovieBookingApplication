@@ -1,32 +1,20 @@
-# ============================================================
-# 🎬 BookYourShow - Functional App
-# ============================================================
-# This is no longer a dashboard. This is the customer-facing app.
-
 import streamlit as st
 import pandas as pd
 import mysql.connector
 import hashlib
 from datetime import datetime
-import time # Import time for polling
-
-# ============================================================
-# DATABASE CONNECTION
-# ============================================================
+import time 
 
 def get_connection():
     """Establish connection to MySQL."""
     # !!! IMPORTANT: Replace with your MySQL credentials !!!
     return mysql.connector.connect(
         host="localhost",
-        user="root",              # Your MySQL username (e.g., 'root')
+        user="root",              # Your MySQL username (e.g: 'root')
         password="passkey123",     # Your MySQL password
         database="bookyourshow_db" # Your database name
     )
 
-# ============================================================
-# HELPER FUNCTIONS
-# ============================================================
 
 def hash_password(password):
     """Hashes a password for storing."""
@@ -36,9 +24,6 @@ def check_password(hashed_password, user_password):
     """Checks a user's password against the stored hash."""
     return hashlib.sha256(str.encode(user_password)).hexdigest()
 
-# ============================================================
-# PAGE CONFIG
-# ============================================================
 
 st.set_page_config(
     page_title="BookYourShow",
@@ -46,11 +31,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# ============================================================
-# SESSION STATE INITIALIZATION
-# ============================================================
-# This is the "memory" of the app, storing login status,
-# what page we're on, and what movie/show is selected.
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -68,24 +48,18 @@ if 'logged_in' not in st.session_state:
     st.session_state.selected_movie_title = None
     st.session_state.error_message = None
     
-    # --- For payment flow ---
     st.session_state.pending_booking_price = 0
     st.session_state.pending_booking_seats = []
     
-    # --- For live polling ---
     st.session_state.movie_count = 0
 
 
-# ============================================================
-# PAGE: LOGIN & REGISTER
-# ============================================================
 
 def show_login_page():
     st.title("🎟️ BookYourShow")
     
     login_tab, register_tab = st.tabs(["Login", "Register"])
 
-    # --- LOGIN TAB ---
     with login_tab:
         with st.form("login_form"):
             email = st.text_input("Email")
@@ -109,17 +83,13 @@ def show_login_page():
                         user_data = cursor.fetchone()
                         
                         if user_data:
-                            # Verify password (assuming you store hashed passwords)
-                            # For this example, we'll check plain text.
-                            # In a real app, use: check_password(user_data['password'], password)
                             if user_data['password'] == password: 
                                 st.session_state.logged_in = True
                                 st.session_state.user_id = user_data['user_id']
                                 st.session_state.user_name = user_data['name']
-                                st.session_state.role = user_data['role'] # <-- THIS IS KEY
+                                st.session_state.role = user_data['role']
                                 st.session_state.page = "home"
                                 
-                                # --- Initialize movie count for live polling ---
                                 cursor.execute("SELECT COUNT(*) FROM movies WHERE release_date <= CURDATE()")
                                 st.session_state.movie_count = cursor.fetchone()['COUNT(*)']
                                 
@@ -137,7 +107,6 @@ def show_login_page():
                     except mysql.connector.Error as err:
                         st.error(f"Database Error: {err.msg}")
 
-    # --- REGISTER TAB ---
     with register_tab:
         with st.form("register_form"):
             name = st.text_input("Full Name")
@@ -154,7 +123,6 @@ def show_login_page():
                         conn = get_connection()
                         cursor = conn.cursor()
                         
-                        # BACKEND HOOK: Insert new user into `users` table
                         cursor.execute(
                             "INSERT INTO users (name, email, password, role) VALUES (%s, %s, %s, 'customer')",
                             (name, reg_email, reg_password)
@@ -172,13 +140,9 @@ def show_login_page():
                             st.error(f"Database Error: {err.msg}")
 
 
-# ============================================================
-# PAGE: HOME (MOVIE LISTING)
-# ============================================================
 
 def show_home_page():
-    
-    # --- Live polling check ---
+
     try:
         conn_check = get_connection()
         cursor_check = conn_check.cursor(dictionary=True)
@@ -196,18 +160,15 @@ def show_home_page():
     
     except mysql.connector.Error as err:
         pass # Silently fail check if DB has issue
-    
-    # --- UPDATED HEADER (with tighter, right-aligned buttons) ---
-    title_col, button_col = st.columns([0.6, 0.4]) # Give title 60%, buttons 40%
+    title_col, button_col = st.columns([0.6, 0.4]) 
 
     with title_col:
         st.title(f"Welcome, {st.session_state.user_name}!")
 
     with button_col:
-        # Create nested columns for the buttons
         if st.session_state.role == 'admin':
-            # Admin gets 3 buttons
-            b_cols = st.columns(3) # Creates 3 equal columns
+    
+            b_cols = st.columns(3) 
             with b_cols[0]:
                 if st.button("Profile", use_container_width=True):
                     st.session_state.page = "profile"
@@ -222,8 +183,7 @@ def show_home_page():
                         del st.session_state[key]
                     st.rerun()
         else:
-            # Customer gets 2 buttons, align them to the right
-            b_cols = st.columns([0.5, 0.25, 0.25]) # Use a spacer column
+            b_cols = st.columns([0.5, 0.25, 0.25]) 
             with b_cols[1]:
                 if st.button("Profile", use_container_width=True):
                     st.session_state.page = "profile"
@@ -233,14 +193,12 @@ def show_home_page():
                     for key in st.session_state.keys():
                         del st.session_state[key]
                     st.rerun()
-    # --- END UPDATED HEADER ---
 
     st.header("🎬 Recommended Movies")
 
     try:
         conn = get_connection()
         
-        # BACKEND HOOK: Select all movies from `movies` table
         query = "SELECT * FROM movies WHERE release_date <= CURDATE()"
         df_movies = pd.read_sql(query, conn)
         conn.close()
@@ -257,35 +215,24 @@ def show_home_page():
             with cols[index % num_cols]:
                 st.image(f"https://placehold.co/300x450/606060/FFF?text={movie['title'].replace(' ', '+')}", use_container_width=True)
                 
-                # --- THIS IS THE FIX ---
-                # Create a container with a fixed height for the text
-                # This ensures the button below is aligned
-                # 150px is a good height for subheader, genre, and rating
                 with st.container(height=150): 
                     st.subheader(movie['title'])
                     st.write(f"**Genre:** {movie['genre']}")
                     st.write(f"**Rating:** {movie['rating']} ⭐")
-                # --- END OF FIX ---
+
                 
-                # Button to select this movie (now outside the fixed-height container)
                 if st.button("Book Now", key=f"movie_{movie['movie_id']}"):
                     st.session_state.selected_movie_id = movie['movie_id']
                     st.session_state.selected_movie_title = movie['title']
                     st.session_state.page = "movie_details"
                     st.rerun()
 
-        # --- Add polling mechanism ---
-        # Rerun the page every 5 seconds to check for new movies
         time.sleep(5)
         st.rerun()
 
     except mysql.connector.Error as err:
         st.error(f"Database Error: {err.msg}")
 
-
-# ============================================================
-# PAGE: MOVIE DETAILS (SHOWTIMES)
-# ============================================================
 
 def show_movie_details_page():
     if st.button("← Back to Movies"):
@@ -364,11 +311,6 @@ def show_movie_details_page():
     except mysql.connector.Error as err:
         st.error(f"Database Error: {err.msg}")
 
-
-# ============================================================
-# PAGE: SEAT SELECTION
-# ============================================================
-
 def show_seat_selection_page():
     if st.button("← Back to Showtimes"):
         st.session_state.page = "movie_details"
@@ -409,7 +351,6 @@ def show_seat_selection_page():
         occupied_seats = [row[0] for row in cursor.fetchall()]
         conn.close()
 
-        # --- Draw the Seat Map ---
         st.markdown('<div style="background-color: #333; color: white; padding: 10px; text-align: center; border-radius: 5px;">SCREEN</div>', unsafe_allow_html=True)
         st.write("")
 
@@ -426,7 +367,7 @@ def show_seat_selection_page():
                 if seat_num > total_seats:
                     continue
                     
-                seat_id = f"{chr(65+r)}{c+1}" # e.g., A1, A2, B1, B2
+                seat_id = f"{chr(65+r)}{c+1}" 
                 
                 with cols[c]:
                     is_occupied = seat_id in occupied_seats
@@ -443,7 +384,6 @@ def show_seat_selection_page():
                             st.session_state.selected_seats.append(seat_id)
                             st.rerun()
 
-        # --- Booking Summary ---
         if st.session_state.selected_seats:
             num_seats = len(st.session_state.selected_seats)
             price_per_seat = st.session_state.selected_show_price
@@ -465,9 +405,6 @@ def show_seat_selection_page():
     except mysql.connector.Error as err:
         st.error(f"Database Error: {err.msg}")
 
-# ============================================================
-# PAGE: PAYMENT
-# ============================================================
 
 def show_payment_page():
     if st.button("← Back to Seat Selection"):
@@ -479,7 +416,6 @@ def show_payment_page():
 
     st.title("Complete Your Booking")
 
-    # --- Show Order Summary ---
     st.subheader("Order Summary")
     st.info(f"""
         **Movie:** {st.session_state.selected_movie_title}
@@ -493,7 +429,6 @@ def show_payment_page():
     payment_mode = st.radio("Payment Mode", ["Online", "Offline"], horizontal=True)
 
     if st.button("Complete Booking"):
-        # --- THIS IS THE FINAL BOOKING TRANSACTION ---
         try:
             conn = get_connection()
             cursor = conn.cursor()
@@ -545,7 +480,7 @@ def show_payment_page():
             st.rerun()
 
         except mysql.connector.Error as err:
-            conn.rollback() # VERY IMPORTANT: Undo all changes if one part fails
+            conn.rollback() 
             # This will show the "No seats available!" error from your trigger
             st.error(f"BOOKING FAILED: {err.msg}")
         finally:
@@ -553,9 +488,6 @@ def show_payment_page():
                 cursor.close()
                 conn.close()
 
-# ============================================================
-# PAGE: CONFIRMATION
-# ============================================================
 
 def show_confirmation_page():
     st.title("✅ Booking Confirmed!")
@@ -613,9 +545,6 @@ def show_confirmation_page():
                 cursor.close()
                 conn.close()
 
-# ============================================================
-# PAGE: PROFILE
-# ============================================================
 
 def show_profile_page():
     if st.button("← Back to Movies"):
@@ -664,7 +593,6 @@ def show_profile_page():
         
         if not df_bookings.empty:
             
-            # --- Loop for Expanders ---
             for index, booking in df_bookings.iterrows():
                 header = f"{booking['Movie']} at {booking['Theater']} ({booking['Showtime'].strftime('%d %b %Y, %I:%M %p')})"
                 
@@ -676,14 +604,12 @@ def show_profile_page():
                     if booking['Amount'] == 0:
                         show_zero_amount_warning = True
 
-                    # --- Get Seat Details ---
                     cursor = conn.cursor()
                     cursor.execute("SELECT seat_number FROM booking_details WHERE booking_id = %s", (booking['booking_id'],))
                     seats = [row[0] for row in cursor.fetchall()]
                     if seats:
                         st.write(f"**Seats:** {', '.join(seats)}")
                     
-                    # --- Get Payment Details ---
                     cursor.execute("SELECT payment_mode, payment_status, payment_date FROM payments WHERE booking_id = %s", (booking['booking_id'],))
                     payment = cursor.fetchone() # Assuming one payment per booking
                     if payment:
@@ -695,7 +621,6 @@ def show_profile_page():
                     
                     st.divider()
                     
-                    # --- Cancel Button (Conditional) ---
                     is_future_booking = booking['Showtime'] > datetime.now()
                     
                     if booking['Status'] == 'confirmed' and is_future_booking:
@@ -721,7 +646,6 @@ def show_profile_page():
         else:
             st.info("You have no booking history.")
         
-        # --- Show 0 Amount Warning (if needed) ---
         if show_zero_amount_warning:
             st.warning("⚠️ **Found bookings with $0 amount!**\n\nThis is likely due to your `calculate_booking_amount` database trigger. This trigger's logic is flawed and sets the price to 0.\n\n**To fix this, please run this command in your MySQL database:**\n`DROP TRIGGER IF EXISTS calculate_booking_amount;`")
         
@@ -733,9 +657,6 @@ def show_profile_page():
         if 'conn' in locals() and conn.is_connected():
             conn.close()
 
-# ============================================================
-# PAGE: ADMIN PANEL
-# ============================================================
 
 def show_admin_panel():
     if st.button("← Back to Movies"):
@@ -775,10 +696,6 @@ def show_admin_panel():
         if 'conn' in locals() and conn.is_connected():
             conn.close()
 
-# ============================================================
-# MAIN APP ROUTER
-# ============================================================
-# This logic controls which page is currently displayed.
 
 if not st.session_state.logged_in:
     show_login_page()
