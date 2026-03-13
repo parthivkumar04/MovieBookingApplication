@@ -1,4 +1,4 @@
-# BookYourShoW
+# movieBoookingApplication
 A movie booking app-gui linked to mysql db .
 
 ## To Run<br> 
